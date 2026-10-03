@@ -65,7 +65,6 @@ const ResumePreview = ({ data, template }) => {
   const [renderError, setRenderError] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const [previewKey, setPreviewKey] = useState(0);
 
   const isEmpty = !data || Object.keys(data).length === 0;
 
@@ -116,16 +115,26 @@ const ResumePreview = ({ data, template }) => {
   }, [isFullscreen]);
 
   // ── Template Loading ─────────────────────────────────────────────────
+  //
+  // This effect deliberately depends ONLY on `template`. Data changes must
+  // NOT reset the loader or remount the template — that caused the preview
+  // to flicker (loader → blank → fade-in → repeat) on every keystroke,
+  // because the parent (`ResumeBuilder`) passes a new `data` object
+  // reference on every render (react-hook-form's `watch()` returns a
+  // fresh object each time it is called).
+  //
+  // Correct behavior:
+  //   • First mount → brief loader while the lazy template chunk loads.
+  //   • Template changes → brief loader while the new lazy chunk loads.
+  //   • Data changes (typing, autosave, section navigation) → template
+  //     re-renders in place with new props. No loader, no remount.
 
   useEffect(() => {
     setIsLoaded(false);
     setRenderError(null);
-    const timer = setTimeout(() => {
-      setIsLoaded(true);
-      setPreviewKey((p) => p + 1);
-    }, 100);
+    const timer = setTimeout(() => setIsLoaded(true), 100);
     return () => clearTimeout(timer);
-  }, [data, template]);
+  }, [template]);
 
   // ── Handlers ─────────────────────────────────────────────────────────
 
@@ -217,7 +226,6 @@ const ResumePreview = ({ data, template }) => {
 
   const handleRetry = useCallback(() => {
     setRenderError(null);
-    setPreviewKey((p) => p + 1);
   }, []);
 
   // ── Keyboard Shortcuts ───────────────────────────────────────────────
@@ -257,6 +265,10 @@ const ResumePreview = ({ data, template }) => {
   }, [handleDownload, handleFullscreen, handleZoomIn, handleZoomOut, handleZoomReset]);
 
   // ── Render Template ──────────────────────────────────────────────────
+  //
+  // `key={template}` (not a state counter). The template remounts only when
+  // the user picks a different template, which is the only case where a
+  // full remount is desired. Data changes flow through as props.
 
   const renderTemplate = useCallback(() => {
     if (isEmpty) {
@@ -284,7 +296,7 @@ const ResumePreview = ({ data, template }) => {
             </div>
           }
         >
-          <TemplateComponent key={previewKey} data={data} />
+          <TemplateComponent key={template} data={data} />
         </React.Suspense>
       );
     } catch (error) {
@@ -292,7 +304,7 @@ const ResumePreview = ({ data, template }) => {
       setRenderError(error);
       return null;
     }
-  }, [isEmpty, template, previewKey, data, getOrCreateLazyTemplate]);
+  }, [isEmpty, template, data, getOrCreateLazyTemplate]);
 
   // ── Zoom Controls Component ──────────────────────────────────────────
 
@@ -474,6 +486,25 @@ const ResumePreview = ({ data, template }) => {
   );
 };
 
+// ── Memo Comparator ────────────────────────────────────────────────────────
+//
+// Reference equality on `data` never short-circuits: the parent
+// (`ResumeBuilder`) calls `watch()` on every render and gets a fresh object
+// each time. Comparing `JSON.stringify` of the payload is the correct
+// shallow-content check for a resume-shaped object; it is cheap relative to
+// the cost of re-rendering a template tree and skipping it whenever the
+// parent re-renders for unrelated reasons (section navigation, sidebar
+// collapse, toast appearance, etc.).
+//
+// If `JSON.stringify` throws — circular reference, or a field the caller
+// forgot to serialize — fall through to re-rendering. Safer than crashing
+// inside the comparator.
+
 export default React.memo(ResumePreview, (prev, next) => {
-  return prev.data === next.data && prev.template === next.template;
+  if (prev.template !== next.template) return false;
+  try {
+    return JSON.stringify(prev.data) === JSON.stringify(next.data);
+  } catch {
+    return false;
+  }
 });
