@@ -99,9 +99,25 @@ const parseIntEnv = (raw, fallback, min = 0) => {
 const AI_FREE_DAILY_LIMIT = parseIntEnv(process.env.AI_FREE_DAILY_LIMIT, 10, 0);
 const AI_PREMIUM_DAILY_LIMIT = parseIntEnv(process.env.AI_PREMIUM_DAILY_LIMIT, 100, 0);
 
-// Server-side timeout for the upstream Gemini call. `min` is 1000 ms: a
-// sub-second timeout would abort every call and is never intentional.
-const GEMINI_TIMEOUT_MS = parseIntEnv(process.env.GEMINI_TIMEOUT_MS, 20000, 1000);
+// Server-side timeout for the upstream Gemini call.
+//
+// The default is deliberately 8000 ms — well under Netlify's 10 s
+// synchronous function timeout. When the function's own timeout fires,
+// the handler returns a graceful `504 { success: false, error: "AI
+// service timed out." }` JSON body. The client then falls back to its
+// local generator with an informative message.
+//
+// If the function waits longer than Netlify's platform limit (previous
+// default was 20 000 ms), the platform kills the container before the
+// function's own timeout can fire. The client receives a bare 504 with
+// no JSON body and no error message, and cannot distinguish "AI timed
+// out gracefully" from "the whole function crashed". That is the exact
+// symptom that motivated lowering this default.
+//
+// `GEMINI_TIMEOUT_MS` may still be set as an environment variable to
+// override this default per environment. `min` is 1000 ms: a sub-second
+// timeout would abort every call and is never intentional.
+const GEMINI_TIMEOUT_MS = parseIntEnv(process.env.GEMINI_TIMEOUT_MS, 8000, 1000);
 
 // Payload caps. These bound what a client can put on the wire and, more
 // importantly, what can end up in a Gemini prompt.

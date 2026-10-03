@@ -32,10 +32,19 @@
 
     <meta name="msvalidate.01" content="8A937F84BA5B7C853855493DF3CA2C06" />
     
-    <!-- Primary Meta Tags -->
+    <!-- Primary Meta Tags.
+         NOTE: `<title>` is kept as a static fallback. react-helmet-async
+         replaces it on mount with the route-specific title from
+         `SeoManager.jsx`, so there is only ever one title tag in the DOM.
+         `<meta name="description">` and `<link rel="canonical">` are
+         deliberately NOT present here. Helmet only manages tags it
+         created (marked with `data-rh="true"`), so a static description
+         or canonical would survive alongside Helmet's runtime tags and
+         produce two of each in the rendered DOM. `SeoManager.jsx` is the
+         single source of truth for both — it reads per-route values from
+         `siteConfig.seo.routes` via `getSeoForPath(pathname)`. -->
     <title>Maniesta Career OS - AI-Powered ATS Resume Builder | Create Professional Resumes</title>
     <meta name="title" content="Maniesta Career OS - AI-Powered ATS Resume Builder" />
-    <meta name="description" content="Create professional, ATS-optimized resumes with AI-powered suggestions. 25+ premium templates, real-time scoring, and instant PDF download. Land your dream job faster with Maniesta Career OS." />
     <meta name="keywords" content="resume builder, ATS resume, CV maker, professional resume, AI resume builder, job application, career tools, resume templates, cover letter, job search, resume optimizer, ATS score" />
     <meta name="author" content="Usman Murtaza" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -46,7 +55,10 @@
     <meta name="rating" content="General" />
     <meta name="copyright" content="© 2024-2026 Maniesta Career OS. All rights reserved." />
     
-    <!-- Open Graph / Facebook -->
+    <!-- Open Graph / Facebook.
+         NOTE: These are static fallbacks for non-JS crawlers. Helmet will
+         emit its own og:* tags from SeoManager, and Helmet dedupes the
+         og:title / og:url / og:type / og:site_name fields it manages. -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://maniesta-career.netlify.app" />
     <meta property="og:title" content="Maniesta Career OS - AI-Powered ATS Resume Builder" />
@@ -74,9 +86,6 @@
     <meta name="twitter:image:alt" content="Maniesta Career OS - Professional Resume Builder Interface" />
     <meta name="twitter:site" content="@maniesta-careeros" />
     <meta name="twitter:creator" content="@usmannmurtazaa" />
-    
-    <!-- Canonical URL -->
-    <link rel="canonical" href="https://maniesta-career.netlify.app" />
     
     <!-- Favicon and Icons
          NOTE: These reference /favicon-32x32.png, /favicon-16x16.png,
