@@ -229,11 +229,16 @@ const ATSScanner = ({ onDataExtracted, onError }) => {
         setScanResult(result);
         setScanProgress(100);
         toast.success('Resume analyzed successfully!');
-      } catch (err) {
+            } catch (err) {
         console.error('Scan error:', err);
         setError(err.message || 'Failed to scan resume. Please try again.');
         toast.error(err.message || 'Scan failed');
-        onError?.(err);
+        // Pass a string, not the Error object. `onError` is documented to
+        // receive a displayable message. Callers pass its argument directly
+        // to `toast.error`, which renders its argument as a React child -
+        // passing an Error instance produces React error #31
+        // ("Objects are not valid as a React child").
+        onError?.(err?.message || 'Scan failed');
       } finally {
         setScanning(false);
         setIsProcessing(false);

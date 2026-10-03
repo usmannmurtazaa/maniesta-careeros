@@ -68,9 +68,19 @@ const ATSScannerPage = () => {
     }
   }, [navigate]);
 
-  // Handle scanner errors
+  // Handle scanner errors.
+  //
+  // `ATSScanner` calls this with a string message, but that contract is not
+  // enforced by types. Coerce defensively so a caller that accidentally
+  // passes an `Error` instance (or any non-string) does not surface React
+  // error #31 ("Objects are not valid as a React child") when
+  // `react-hot-toast` tries to render its argument.
   const handleScannerError = useCallback((error) => {
-    toast.error(error || 'Failed to analyze resume. Please try again.');
+    const message =
+      typeof error === 'string'
+        ? error
+        : error?.message || 'Failed to analyze resume. Please try again.';
+    toast.error(message);
     setIsProcessing(false);
   }, []);
 

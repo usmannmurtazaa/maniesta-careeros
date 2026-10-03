@@ -75,6 +75,47 @@ const FORMATTING_ISSUES = [
 // never referenced and has been removed.
 const STRONG_ACTION_VERBS = Object.values(actionVerbs).flat();
 
+// ── Regex helpers ────────────────────────────────────────────────────────
+//
+// Every keyword list in this file may contain entries that are not plain
+// words. `industryKeywords.technology`, for example, contains `C++`, `C#`,
+// `Node.js`, `ASP.NET`, and `CI/CD`. Building a regex from such an entry
+// without escaping has two distinct failure modes:
+//
+//   1. HARD CRASH — `new RegExp('\\bC++\\b')` throws
+//      `SyntaxError: Invalid regular expression: /\bc++\b/g: Nothing to
+//      repeat`. `+` is a quantifier, and `c++` has no atom for the second
+//      `+` to repeat. The exception propagates out of `detectKeywordStuffing`,
+//      through `scoreKeywords`, through `calculateDetailedScore`, and out of
+//      the ATS Scanner's scan pipeline. The entire resume scan fails with no
+//      result and a "Scan failed" toast.
+//
+//   2. SILENT MISMATCH — `new RegExp('\\bNode.js\\b')` compiles, but the
+//      unescaped `.` matches any character. The pattern matches `NodeXjs`,
+//      `Node-js`, and similar strings the user did not write. `C#` compiles
+//      but the trailing `\b` requires a word character to its left, and `#`
+//      is not a word character — so `\bC#\b` never matches "I know C#"
+//      (silent false negative).
+//
+// `escapeRegExp` solves the crash and the miscompilation. It is the same
+// idiom already used in `src/utils/resumeParser.js`.
+//
+// `buildWholeWordRegex` additionally solves the false-negative case for
+// terms that start or end with a non-word character. `\b` requires a word
+// character on both sides of the boundary, so `\bC\+\+\b` cannot match
+// "I know C++" — the trailing `\b` has no word character to its left after
+// `++`. Lookarounds check "not preceded/followed by an ASCII alphanumeric"
+// instead, which is what "whole word" actually means for symbol-bearing
+// keywords. Lookbehind is supported in every browser this app targets
+// (Safari 16.4+, Chrome 62+, Firefox 78+).
+
+const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildWholeWordRegex = (term, flags = 'g') => {
+  const escaped = escapeRegExp(term);
+  return new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, flags);
+};
+
 // ── Utility Functions ────────────────────────────────────────────────────
 
 const countWords = (text) => {
@@ -122,12 +163,12 @@ const detectActionVerbStrength = (text) => {
   let strong = 0;
   let weak = 0;
   STRONG_ACTION_VERBS.forEach((verb) => {
-    const regex = new RegExp(`\\b${verb.toLowerCase()}\\b`, 'g');
+    const regex = buildWholeWordRegex(verb.toLowerCase());
     const matches = lower.match(regex);
     if (matches) strong += matches.length;
   });
   WEAK_ACTION_VERBS.forEach((verb) => {
-    const regex = new RegExp(`\\b${verb.toLowerCase()}\\b`, 'g');
+    const regex = buildWholeWordRegex(verb.toLowerCase());
     const matches = lower.match(regex);
     if (matches) weak += matches.length;
   });
@@ -140,7 +181,7 @@ const detectPassiveVoice = (text) => {
   const found = PASSIVE_PHRASES.filter((phrase) => lower.includes(phrase.toLowerCase()));
   let count = 0;
   found.forEach((phrase) => {
-    const regex = new RegExp(phrase.toLowerCase(), 'g');
+    const regex = buildWholeWordRegex(phrase.toLowerCase());
     const matches = lower.match(regex);
     if (matches) count += matches.length;
   });
@@ -174,7 +215,7 @@ const detectKeywordStuffing = (text, keywords) => {
   const lower = text.toLowerCase();
   const stuffed = [];
   keywords.forEach((keyword) => {
-    const regex = new RegExp(`\\b${keyword.toLowerCase()}\\b`, 'g');
+    const regex = buildWholeWordRegex(keyword.toLowerCase());
     const matches = lower.match(regex);
     if (matches && matches.length > 3) {
       stuffed.push({ keyword, count: matches.length });
